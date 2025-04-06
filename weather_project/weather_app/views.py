@@ -7,12 +7,7 @@ from dicttoxml import dicttoxml
 from django.http import HttpResponse
 from django.conf import settings
 
-API_KEY = settings.RAPIDAPI_KEY
-API_HOST = settings.RAPIDAPI_HOST
-API_URL = "https://weatherapi-com.p.rapidapi.com/current.json"
-
 class GetCurrentWeather(APIView):
-
     def post(self, request):
         serializer = WeatherRequestSerializer(data=request.data)
         if serializer.is_valid():
@@ -20,17 +15,24 @@ class GetCurrentWeather(APIView):
             output_format = serializer.validated_data['output_format']
 
             headers = {
-                "X-RapidAPI-Key": self.API_KEY,
-                "X-RapidAPI-Host": self.API_HOST
+                "X-RapidAPI-Key": settings.RAPIDAPI_KEY,
+                "X-RapidAPI-Host": settings.RAPIDAPI_HOST
             }
             params = {"q": city}
 
             try:
-                with httpx.Client() as client:
-                    response = client.get(self.API_URL, headers=headers, params=params)
-                    response.raise_for_status()
+                response = httpx.get(
+                    "https://weatherapi-com.p.rapidapi.com/current.json",
+                    headers=headers,
+                    params={"q": city}
+                )
+                response.raise_for_status()
+            except httpx.RequestError as e:
+                return Response({"error": "Network error", "details": str(e)},
+                                status=status.HTTP_502_BAD_GATEWAY)
             except httpx.HTTPStatusError:
-                return Response({"error": "Failed to fetch weather"}, status=status.HTTP_502_BAD_GATEWAY)
+                return Response({"error": "Weather API failed"},
+                                status=status.HTTP_502_BAD_GATEWAY)
 
             data = response.json()
             current = data.get("current", {})
